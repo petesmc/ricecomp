@@ -1,7 +1,8 @@
 [package]
 name = "ricecomp"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
+repository = "https://github.com/petesmc/ricecomp.git"
 description = "Rice Compression Algorithm from CFITSIO"
 license = "MIT"
 
