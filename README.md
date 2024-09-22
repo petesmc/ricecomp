@@ -8,4 +8,6 @@ Algorithm description section 6.1 https://fits.gsfc.nasa.gov/registry/tilecompre
 
 Comparison compress methods for FITS: https://arxiv.org/pdf/0903.2140.pdf
 
-Port of ricecomp.c in CFITSIO to Rust
+Transpiled port of ricecomp.c in CFITSIO to Rust. 
+
+The C version was originally written by Richard White at STScI and made available for use in CFITSIO in July 1999.
