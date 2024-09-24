@@ -2,8 +2,8 @@ fn log_noop(_msg: &str) {
     // noop
 }
 
-pub mod read;
 pub mod write;
+pub mod read;
 
 const EOF: i32 = -1;
 
@@ -23,7 +23,7 @@ mod tests {
             25, 26, 27, 28, 29, 30, 31, 32,
         ];
 
-        let mut encoder = read::RCEncoder::new();
+        let mut encoder = write::RCEncoder::new();
         let mut outarray = Vec::new();
         let _result = encoder.encode(&inarray, 32, 16, &mut outarray).unwrap();
 
@@ -38,11 +38,11 @@ mod tests {
             25, 26, 27, 28, 29, 30, 31, 32,
         ];
 
-        let mut encoder = read::RCEncoder::new();
+        let mut encoder = write::RCEncoder::new();
         let mut outarray = Vec::new();
         let _result = encoder.encode(&inarray, 32, bs, &mut outarray).unwrap();
 
-        let decoder = write::RCDecoder::new();
+        let decoder = read::RCDecoder::new();
         let mut new_inarray = Vec::new();
         let _result = decoder.decode(&outarray, 32, bs, &mut new_inarray);
         let new_inarray: Vec<i32> = new_inarray.iter().map(|&x| x as i32).collect();
@@ -197,11 +197,11 @@ mod tests {
         ];
         let bs = 139;
 
-        let mut encoder = read::RCEncoder::new();
+        let mut encoder = write::RCEncoder::new();
         let mut outarray = Vec::new();
         let _result = encoder.encode(&inarray, 141, bs, &mut outarray).unwrap();
 
-        let decoder = write::RCDecoder::new();
+        let decoder = read::RCDecoder::new();
         let mut new_inarray = Vec::new();
         let _result = decoder.decode(&outarray, 141, bs, &mut new_inarray);
 

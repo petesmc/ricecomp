@@ -1,68 +1,61 @@
-use std::ffi::c_int;
+use crate::log_noop;
 
-use crate::{log_noop, EOF};
+/// nonzero_count is lookup table giving number of bits in 8-bit values not including
+/// leading zeros used in fits_rdecomp, fits_rdecomp_short and fits_rdecomp_byte
+const NONZERO_COUNT: [i32; 256] = [
+    0, 1, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
+    6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
+    7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+    7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+    8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
+    8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
+    8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
+    8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
+];
 
 #[derive(Debug)]
-pub enum EncodeError {
+pub enum DecodeError {
     EndOfBuffer,
     ZeroSizeInput,
 }
 
-#[derive(Debug, Default)]
-struct Buffer {
-    bitbuffer: c_int,  /* bit buffer			*/
-    bits_to_go: c_int, /* bits to go in buffer	*/
-    current: usize,    /* current position in buffer	*/
-}
-
-pub struct RCEncoder {
+pub struct RCDecoder {
     log_fn: fn(&str),
-    buffer: Buffer,
 }
 
-impl RCEncoder {
-    pub fn new() -> Self {
-        RCEncoder {
-            log_fn: log_noop,
-            buffer: Buffer::default(),
-        }
+impl RCDecoder {
+    pub fn new() -> RCDecoder {
+        RCDecoder { log_fn: log_noop }
     }
 
     pub fn set_log_fn(&mut self, log_fn: fn(&str)) {
         self.log_fn = log_fn;
     }
 
-    pub fn encode(
-        &mut self,
-        input: &[i32],        /* input array			*/
-        nx: usize,            /* number of input pixels	*/
-        nblock: usize,        /* coding block size		*/
-        output: &mut Vec<u8>, /* output buffer		*/
-    ) -> Result<usize, EncodeError> {
-        if input.is_empty() || nblock == 0 {
-            return Err(EncodeError::ZeroSizeInput);
-        }
-
+    pub fn decode(
+        &self,
+        input: &[u8], /* input buffer			*/
+        nx: usize,    /* number of output pixels	*/
+        nblock: usize,
+        output: &mut Vec<u32>,
+    ) -> Result<(), DecodeError> /* coding block size		*/ {
         /* int bsize;  */
-        let mut _i: i32;
-        let mut _j: i32;
 
-        let mut nextpix: i32;
-        let mut pdiff: i32;
+        let mut k: i32;
+        let mut imax: usize;
 
-        let mut v: i32;
+        let mut nzero: i32;
         let mut fs: i32;
-        let mut fsmask: i32;
-        let mut top: i32;
-        let mut _fsmax: i32;
+        let _cend: u8;
+
+        let mut diff: u32;
+
+        let _fsmax: i32;
         let _fsbits: i32;
+        let _bbits: i32;
 
-        let mut lbitbuffer: i32;
-        let mut lbits_to_go: i32;
-
-        let mut psum: u32;
-        let mut pixelsum: f64;
-        let mut dpsum: f64;
+        output.resize(nx, 0);
+        output.fill(0);
 
         /*
          * Original size of each pixel (bsize, bytes) and coding block
@@ -70,9 +63,9 @@ impl RCEncoder {
          * Could make bsize a parameter to allow more efficient
          * compression of short & byte images.
          */
-        /*    bsize = 4;   */
+        /*    bsize = 4; */
 
-        /*    nblock = 32; now an input parameter*/
+        /*    nblock = 32; now an input parameter */
         /*
          * From bsize derive:
          * FSBITS = # bits required to store FS
@@ -95,8 +88,8 @@ impl RCEncoder {
         fsmax = 25;
         break;
         default:
-            log_noop("rdecomp: bsize must be 1, 2, or 4 bytes");
-        return(-1);
+        ffpmsg("rdecomp: bsize must be 1, 2, or 4 bytes");
+        return 1;
         }
         */
 
@@ -107,225 +100,134 @@ impl RCEncoder {
         let bbits: i32 = 1 << fsbits;
 
         /*
-         * Set up buffer pointers
-         */
-        self.buffer = Buffer {
-            current: 0,
-            bits_to_go: 8,
-            bitbuffer: 0,
-        };
-
-        output.reserve(nx * 4);
-
-        /*
-         * array for differences mapped to non-negative values
-         */
-        let mut diff: Vec<u32> = vec![0; nblock];
-
-        /*
-         * Code in blocks of nblock pixels
+         * Decode in blocks of nblock pixels
          */
 
-        // Initialize for bit output
-        self.buffer.bitbuffer = 0;
-        self.buffer.bits_to_go = 8;
+        /* first 4 bytes of input buffer contain the value of the first */
+        /* 4 byte integer value, without any encoding */
 
-        /* write out first int value to the first 4 bytes of the buffer */
-        if self.output_nbits(output, input[0], 32) == EOF {
-            (self.log_fn)("rice_encode: end of buffer");
-            return Err(EncodeError::EndOfBuffer);
-        }
+        let mut lastpix: u32 = 0;
+        let mut bytevalue: u8 = input[0];
+        lastpix |= (bytevalue as u32) << 24;
+        bytevalue = input[1];
+        lastpix |= (bytevalue as u32) << 16;
+        bytevalue = input[2];
+        lastpix |= (bytevalue as u32) << 8;
+        bytevalue = input[3];
+        lastpix |= bytevalue as u32;
 
-        let mut lastpix: i32 = input[0]; /* the first difference will always be zero */
+        let mut c_current: usize = 4;
 
-        let mut thisblock: usize = nblock;
+        // cend = c + clen - 4;
 
-        for i in (0..nx).step_by(nblock) {
-            // for (i=0; i<nx; i += nblock) {
-            /* last block may be shorter */
-            if nx - i < nblock {
-                thisblock = nx - i;
+        let mut b: u32 = input[c_current] as u32; /* bit buffer			*/
+        //TODO
+        c_current += 1;
+        let mut nbits: i32 = 8; /* number of bits remaining in b	*/
+
+        let mut i: usize = 0;
+        while i < nx {
+            /* get the FS value from first fsbits */
+            nbits -= fsbits;
+            while nbits < 0 {
+                b = (b << 8) | input[c_current] as u32;
+                c_current += 1;
+                nbits += 8;
             }
-            /*
-             * Compute differences of adjacent pixels and map them to unsigned values.
-             * Note that this may overflow the integer variables -- that's
-             * OK, because we can recover when decompressing.  If we were
-             * compressing shorts or bytes, would want to do this arithmetic
-             * with short/byte working variables (though diff will still be
-             * passed as an int.)
-             *
-             * compute sum of mapped pixel values at same time
-             * use double precision for sum to allow 32-bit integer inputs
-             */
-            pixelsum = 0.0;
-            for j in 0..thisblock {
-                nextpix = input[i + j];
-                pdiff = nextpix.wrapping_sub(lastpix);
-                diff[j] = (if pdiff < 0 { !(pdiff << 1) } else { pdiff << 1 }) as u32; // ! is bitwise complement
-                pixelsum += diff[j] as f64;
-                lastpix = nextpix;
-            }
+            fs = ((b >> nbits).wrapping_sub(1)) as i32;
 
-            /*
-             * compute number of bits to split from sum
-             */
-            dpsum = (pixelsum - ((thisblock as f64) / 2.0) - 1.0) / (thisblock as f64);
-            if dpsum < 0.0 {
-                dpsum = 0.0;
+            b &= (1 << nbits) - 1;
+            /* loop over the next block */
+            imax = i + nblock;
+            if imax > nx {
+                imax = nx;
             }
-            psum = (dpsum as u32) >> 1;
-
-            fs = 0;
-            while psum > 0 {
-                psum >>= 1;
-                fs += 1;
-            }
-
-            /*
-             * write the codes
-             * fsbits ID bits used to indicate split level
-             */
-            if fs >= fsmax {
-                /* Special high entropy case when FS >= fsmax
-                 * Just write pixel difference values directly, no Rice coding at all.
-                 */
-                if self.output_nbits(output, fsmax + 1, fsbits) == EOF {
-                    (self.log_fn)("rice_encode: end of buffer");
-                    return Err(EncodeError::EndOfBuffer);
+            if fs < 0 {
+                /* low-entropy case, all zero differences */
+                while i < imax {
+                    output[i] = lastpix;
+                    i += 1;
                 }
-
-                for j in 0..thisblock {
-                    if self.output_nbits(output, diff[j] as i32, bbits) == EOF {
-                        (self.log_fn)("rice_encode: end of buffer");
-                        return Err(EncodeError::EndOfBuffer);
+            } else if fs == fsmax {
+                /* high-entropy case, directly coded pixel values */
+                while i < imax {
+                    k = bbits - nbits;
+                    diff = b.wrapping_shl(k as u32);
+                    k -= 8;
+                    while k >= 0 {
+                        b = input[c_current] as u32;
+                        c_current += 1;
+                        diff |= b << k;
+                        k -= 8
                     }
-                }
-            } else if fs == 0 && pixelsum == 0.0 {
-                /*
-                 * special low entropy case when FS = 0 and pixelsum=0 (all
-                 * pixels in block are zero.)
-                 * Output a 0 and return
-                 */
-                if self.output_nbits(output, 0, fsbits) == EOF {
-                    (self.log_fn)("rice_encode: end of buffer");
-                    return Err(EncodeError::EndOfBuffer);
+                    if nbits > 0 {
+                        b = input[c_current] as u32;
+                        c_current += 1;
+                        diff |= b >> (-k);
+                        b &= (1 << nbits) - 1;
+                    } else {
+                        b = 0;
+                    }
+                    /*
+                     * undo mapping and differencing
+                     * Note that some of these operations will overflow the
+                     * unsigned int arithmetic -- that's OK, it all works
+                     * out to give the right answers in the output file.
+                     */
+                    if (diff & 1) == 0 {
+                        diff >>= 1;
+                    } else {
+                        diff = !(diff >> 1);
+                    }
+                    output[i] = diff.wrapping_add(lastpix);
+                    lastpix = output[i];
+                    i += 1;
                 }
             } else {
-                /* normal case: not either very high or very low entropy */
-                if self.output_nbits(output, fs + 1, fsbits) == EOF {
-                    (self.log_fn)("rice_encode: end of buffer");
-                    return Err(EncodeError::EndOfBuffer);
-                }
-                fsmask = (1 << fs) - 1;
-                /*
-                 * local copies of bit buffer to improve optimization
-                 */
-                lbitbuffer = self.buffer.bitbuffer;
-                lbits_to_go = self.buffer.bits_to_go;
-                for j in 0..thisblock {
-                    v = diff[j] as i32;
-                    top = v >> fs;
-                    /*
-                     * top is coded by top zeros + 1
-                     */
-                    if lbits_to_go > top {
-                        lbitbuffer = lbitbuffer.wrapping_shl((top + 1) as u32);
-                        lbitbuffer |= 1;
-                        lbits_to_go -= top + 1;
+                /* normal case, Rice coding */
+                while i < imax {
+                    /* count number of leading zeros */
+                    while b == 0 {
+                        nbits += 8;
+
+                        b = input[c_current] as u32;
+                        c_current += 1;
+                    }
+                    nzero = nbits - NONZERO_COUNT[b as usize];
+                    nbits -= nzero + 1;
+                    /* flip the leading one-bit */
+                    b ^= 1 << nbits;
+                    /* get the FS trailing bits */
+                    nbits -= fs;
+                    while nbits < 0 {
+                        b = (b << 8) | (input[c_current] as u32);
+
+                        c_current += 1;
+                        nbits += 8;
+                    }
+                    diff = ((nzero as u32) << fs) | (b >> nbits);
+                    b &= (1 << nbits) - 1;
+
+                    /* undo mapping and differencing */
+                    if (diff & 1) == 0 {
+                        diff >>= 1;
                     } else {
-                        lbitbuffer <<= lbits_to_go;
-                        self.putcbuf(output, lbitbuffer & 0xff);
-
-                        top -= lbits_to_go;
-                        while top >= 8 {
-                            self.putcbuf(output, 0);
-                            top -= 8;
-                        }
-
-                        lbitbuffer = 1;
-                        lbits_to_go = 7 - top;
+                        diff = !(diff >> 1);
                     }
-                    /*
-                     * bottom FS bits are written without coding
-                     * code is output_nbits, moved into this routine to reduce overheads
-                     * This code potentially breaks if FS>24, so I am limiting
-                     * FS to 24 by choice of FSMAX above.
-                     */
-                    if fs > 0 {
-                        lbitbuffer <<= fs;
-                        lbitbuffer |= v & fsmask;
-                        lbits_to_go -= fs;
-                        while lbits_to_go <= 0 {
-                            self.putcbuf(output, (lbitbuffer >> (-lbits_to_go)) & 0xff);
-                            lbits_to_go += 8;
-                        }
-                    }
+                    output[i] = diff.wrapping_add(lastpix);
+                    lastpix = output[i];
+                    i += 1;
                 }
-
-                self.buffer.bitbuffer = lbitbuffer;
-                self.buffer.bits_to_go = lbits_to_go;
+            }
+            if c_current > input.len() {
+                (self.log_fn)("decompression error: hit end of compressed byte stream");
+                return Err(DecodeError::EndOfBuffer);
             }
         }
-
-        // Flush out the last bits
-        if self.buffer.bits_to_go < 8 {
-            self.putcbuf(output, self.buffer.bitbuffer << self.buffer.bits_to_go);
+        if c_current < input.len() {
+            (self.log_fn)("decompression warning: unused bytes at end of compressed buffer");
         }
 
-        // return number of bytes used
-        Ok(self.buffer.current)
-    }
-
-    /*---------------------------------------------------------------------------*/
-    /// Output N bits (N must be <= 32)
-    fn output_nbits(&mut self, output: &mut Vec<u8>, bits: i32, n: i32) -> i32 {
-        /* local copies */
-
-        let mut n = n;
-
-        /* AND mask for the right-most n bits */
-        const MASK: [u32; 33] = [
-            0, 0x1, 0x3, 0x7, 0xf, 0x1f, 0x3f, 0x7f, 0xff, 0x1ff, 0x3ff, 0x7ff, 0xfff, 0x1fff,
-            0x3fff, 0x7fff, 0xffff, 0x1ffff, 0x3ffff, 0x7ffff, 0xfffff, 0x1fffff, 0x3fffff,
-            0x7fffff, 0xffffff, 0x1ffffff, 0x3ffffff, 0x7ffffff, 0xfffffff, 0x1fffffff, 0x3fffffff,
-            0x7fffffff, 0xffffffff,
-        ];
-
-        /*
-         * insert bits at end of bitbuffer
-         */
-        let mut lbitbuffer: i32 = self.buffer.bitbuffer;
-        let mut lbits_to_go: i32 = self.buffer.bits_to_go;
-        if lbits_to_go + n > 32 {
-            /*
-             * special case for large n: put out the top lbits_to_go bits first
-             * note that 0 < lbits_to_go <= 8
-             */
-            lbitbuffer <<= lbits_to_go;
-            /*	lbitbuffer |= (bits>>(n-lbits_to_go)) & ((1<<lbits_to_go)-1); */
-            lbitbuffer |= (bits >> (n - lbits_to_go)) & (MASK[lbits_to_go as usize] as i32);
-            self.putcbuf(output, lbitbuffer & 0xff);
-            n -= lbits_to_go;
-            lbits_to_go = 8;
-        }
-        lbitbuffer <<= n;
-        /*    lbitbuffer |= ( bits & ((1<<n)-1) ); */
-        lbitbuffer |= bits & MASK[n as usize] as i32;
-        lbits_to_go -= n;
-        while lbits_to_go <= 0 {
-            /*
-             * bitbuffer full, put out top 8 bits
-             */
-            self.putcbuf(output, (lbitbuffer >> (-lbits_to_go)) & 0xff);
-            lbits_to_go += 8;
-        }
-        self.buffer.bitbuffer = lbitbuffer;
-        self.buffer.bits_to_go = lbits_to_go;
-        0
-    }
-
-    fn putcbuf(&mut self, buffer: &mut Vec<u8>, c: i32) {
-        buffer.push(c as u8);
-        self.buffer.current += 1;
+        Ok(())
     }
 }
