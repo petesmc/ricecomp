@@ -2,8 +2,8 @@ fn log_noop(_msg: &str) {
     // noop
 }
 
-pub mod write;
 pub mod read;
+pub mod write;
 
 const EOF: i32 = -1;
 
