@@ -20,7 +20,19 @@ ricecomp = { path = "..", features = ["arbitrary"] }
 members = ["."]
 
 [[bin]]
-name = "fuzz_target_1"
-path = "fuzz_targets/fuzz_target_1.rs"
+name = "fuzz_target_int"
+path = "fuzz_targets/fuzz_target_int.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_target_short"
+path = "fuzz_targets/fuzz_target_short.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_target_byte"
+path = "fuzz_targets/fuzz_target_byte.rs"
 test = false
 doc = false
