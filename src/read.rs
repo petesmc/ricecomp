@@ -25,6 +25,12 @@ pub struct RCDecoder {
     log_fn: fn(&str),
 }
 
+impl Default for RCDecoder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl RCDecoder {
     pub fn new() -> RCDecoder {
         RCDecoder { log_fn: log_noop }

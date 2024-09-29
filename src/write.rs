@@ -20,6 +20,12 @@ pub struct RCEncoder {
     buffer: Buffer,
 }
 
+impl Default for RCEncoder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl RCEncoder {
     pub fn new() -> Self {
         RCEncoder {
@@ -50,8 +56,6 @@ impl RCEncoder {
         let mut fs: i32;
         let mut fsmask: i32;
         let mut top: i32;
-        let mut _fsmax: i32;
-        let _fsbits: i32;
 
         let mut lbitbuffer: i32;
         let mut lbits_to_go: i32;
@@ -161,8 +165,8 @@ impl RCEncoder {
                     return Err(EncodeError::EndOfBuffer);
                 }
 
-                for j in 0..thisblock {
-                    if self.output_nbits(output, diff[j] as i32, bbits) == EOF {
+                for &diff_item in diff.iter().take(thisblock) {
+                    if self.output_nbits(output, diff_item as i32, bbits) == EOF {
                         (self.log_fn)("rice_encode: end of buffer");
                         return Err(EncodeError::EndOfBuffer);
                     }
@@ -189,8 +193,8 @@ impl RCEncoder {
                  */
                 lbitbuffer = self.buffer.bitbuffer;
                 lbits_to_go = self.buffer.bits_to_go;
-                for j in 0..thisblock {
-                    v = diff[j] as i32;
+                for &diff_item in diff.iter().take(thisblock) {
+                    v = diff_item as i32;
                     top = v >> fs;
                     /*
                      * top is coded by top zeros + 1
@@ -261,8 +265,6 @@ impl RCEncoder {
         let mut fs: i32;
         let mut fsmask: i32;
         let mut top: i32;
-        let mut _fsmax: i32;
-        let _fsbits: i32;
 
         let mut lbitbuffer: i32;
         let mut lbits_to_go: i32;
@@ -314,7 +316,7 @@ impl RCEncoder {
             return Err(EncodeError::EndOfBuffer);
         }
 
-        let mut lastpix: i16 = input[0].into(); /* the first difference will always be zero */
+        let mut lastpix: i16 = input[0]; /* the first difference will always be zero */
 
         let mut thisblock: usize = nblock;
 
@@ -372,8 +374,8 @@ impl RCEncoder {
                     return Err(EncodeError::EndOfBuffer);
                 }
 
-                for j in 0..thisblock {
-                    if self.output_nbits(output, diff[j] as i32, bbits) == EOF {
+                for &diff_item in diff.iter().take(thisblock) {
+                    if self.output_nbits(output, diff_item as i32, bbits) == EOF {
                         (self.log_fn)("rice_encode: end of buffer");
                         return Err(EncodeError::EndOfBuffer);
                     }
@@ -400,8 +402,8 @@ impl RCEncoder {
                  */
                 lbitbuffer = self.buffer.bitbuffer;
                 lbits_to_go = self.buffer.bits_to_go;
-                for j in 0..thisblock {
-                    v = diff[j] as i32;
+                for &diff_item in diff.iter().take(thisblock) {
+                    v = diff_item as i32;
                     top = v >> fs;
                     /*
                      * top is coded by top zeros + 1
@@ -472,8 +474,6 @@ impl RCEncoder {
         let mut fs: i32;
         let mut fsmask: i32;
         let mut top: i32;
-        let mut _fsmax: i32;
-        let _fsbits: i32;
 
         let mut lbitbuffer: i32;
         let mut lbits_to_go: i32;
@@ -525,7 +525,7 @@ impl RCEncoder {
             return Err(EncodeError::EndOfBuffer);
         }
 
-        let mut lastpix: i8 = input[0].into(); /* the first difference will always be zero */
+        let mut lastpix: i8 = input[0]; /* the first difference will always be zero */
 
         let mut thisblock: usize = nblock;
 
@@ -583,8 +583,8 @@ impl RCEncoder {
                     return Err(EncodeError::EndOfBuffer);
                 }
 
-                for j in 0..thisblock {
-                    if self.output_nbits(output, diff[j] as i32, bbits) == EOF {
+                for &diff_item in diff.iter().take(thisblock) {
+                    if self.output_nbits(output, diff_item as i32, bbits) == EOF {
                         (self.log_fn)("rice_encode: end of buffer");
                         return Err(EncodeError::EndOfBuffer);
                     }
@@ -611,8 +611,8 @@ impl RCEncoder {
                  */
                 lbitbuffer = self.buffer.bitbuffer;
                 lbits_to_go = self.buffer.bits_to_go;
-                for j in 0..thisblock {
-                    v = diff[j] as i32;
+                for &diff_item in diff.iter().take(thisblock) {
+                    v = diff_item as i32;
                     top = v >> fs;
                     /*
                      * top is coded by top zeros + 1
