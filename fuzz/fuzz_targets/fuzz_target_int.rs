@@ -1,11 +1,11 @@
 #![no_main]
 use libfuzzer_sys::fuzz_target;
 extern crate ricecomp;
-use crate::ricecomp::{ Data};
-use ricecomp::read::RCEncoder;
-use ricecomp::write::RCDecoder;
+use crate::ricecomp::DataInt;
+use ricecomp::read::RCDecoder;
+use ricecomp::write::RCEncoder;
 
-fuzz_target!(|data: Data| {
+fuzz_target!(|data: DataInt| {
     let l = data.d.len();
    // let blocksz = if data.bs > 64 { (data.bs % 64)+1 } else {data.bs};
     //let blocksz = if blocksz < 1 { 1 } else { blocksz };
