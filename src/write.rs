@@ -1,4 +1,4 @@
-use std::ffi::c_int;
+use std::{ffi::c_int, io::Write};
 
 use crate::{log_noop, EOF};
 
@@ -15,22 +15,18 @@ struct Buffer {
     current: usize,    /* current position in buffer	*/
 }
 
-pub struct RCEncoder {
+pub struct RCEncoder<W: Write> {
     log_fn: fn(&str),
     buffer: Buffer,
+    inner: W,
 }
 
-impl Default for RCEncoder {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl RCEncoder {
-    pub fn new() -> Self {
+impl<W: Write> RCEncoder<W> {
+    pub fn new(inner: W) -> Self {
         RCEncoder {
             log_fn: log_noop,
             buffer: Buffer::default(),
+            inner,
         }
     }
 
@@ -40,10 +36,9 @@ impl RCEncoder {
 
     pub fn encode(
         &mut self,
-        input: &[i32],        /* input array			*/
-        nx: usize,            /* number of input pixels	*/
-        nblock: usize,        /* coding block size		*/
-        output: &mut Vec<u8>, /* output buffer		*/
+        input: &[i32], /* input array			*/
+        nx: usize,     /* number of input pixels	*/
+        nblock: usize, /* coding block size		*/
     ) -> Result<usize, EncodeError> {
         if input.is_empty() || nblock == 0 {
             return Err(EncodeError::ZeroSizeInput);
@@ -86,7 +81,7 @@ impl RCEncoder {
             bitbuffer: 0,
         };
 
-        output.reserve(nx * 4);
+        // output.reserve(nx * 4);
 
         /*
          * array for differences mapped to non-negative values
@@ -102,7 +97,7 @@ impl RCEncoder {
         self.buffer.bits_to_go = 8;
 
         /* write out first int value to the first 4 bytes of the buffer */
-        if self.output_nbits(output, input[0], 32) == EOF {
+        if self.output_nbits(input[0], 32) == EOF {
             (self.log_fn)("rice_encode: end of buffer");
             return Err(EncodeError::EndOfBuffer);
         }
@@ -160,13 +155,13 @@ impl RCEncoder {
                 /* Special high entropy case when FS >= fsmax
                  * Just write pixel difference values directly, no Rice coding at all.
                  */
-                if self.output_nbits(output, fsmax + 1, fsbits) == EOF {
+                if self.output_nbits(fsmax + 1, fsbits) == EOF {
                     (self.log_fn)("rice_encode: end of buffer");
                     return Err(EncodeError::EndOfBuffer);
                 }
 
                 for &diff_item in diff.iter().take(thisblock) {
-                    if self.output_nbits(output, diff_item as i32, bbits) == EOF {
+                    if self.output_nbits(diff_item as i32, bbits) == EOF {
                         (self.log_fn)("rice_encode: end of buffer");
                         return Err(EncodeError::EndOfBuffer);
                     }
@@ -177,13 +172,13 @@ impl RCEncoder {
                  * pixels in block are zero.)
                  * Output a 0 and return
                  */
-                if self.output_nbits(output, 0, fsbits) == EOF {
+                if self.output_nbits(0, fsbits) == EOF {
                     (self.log_fn)("rice_encode: end of buffer");
                     return Err(EncodeError::EndOfBuffer);
                 }
             } else {
                 /* normal case: not either very high or very low entropy */
-                if self.output_nbits(output, fs + 1, fsbits) == EOF {
+                if self.output_nbits(fs + 1, fsbits) == EOF {
                     (self.log_fn)("rice_encode: end of buffer");
                     return Err(EncodeError::EndOfBuffer);
                 }
@@ -205,11 +200,11 @@ impl RCEncoder {
                         lbits_to_go -= top + 1;
                     } else {
                         lbitbuffer <<= lbits_to_go;
-                        self.putcbuf(output, lbitbuffer & 0xff);
+                        self.putcbuf(lbitbuffer & 0xff);
 
                         top -= lbits_to_go;
                         while top >= 8 {
-                            self.putcbuf(output, 0);
+                            self.putcbuf(0);
                             top -= 8;
                         }
 
@@ -227,7 +222,7 @@ impl RCEncoder {
                         lbitbuffer |= v & fsmask;
                         lbits_to_go -= fs;
                         while lbits_to_go <= 0 {
-                            self.putcbuf(output, (lbitbuffer >> (-lbits_to_go)) & 0xff);
+                            self.putcbuf((lbitbuffer >> (-lbits_to_go)) & 0xff);
                             lbits_to_go += 8;
                         }
                     }
@@ -240,7 +235,7 @@ impl RCEncoder {
 
         // Flush out the last bits
         if self.buffer.bits_to_go < 8 {
-            self.putcbuf(output, self.buffer.bitbuffer << self.buffer.bits_to_go);
+            self.putcbuf(self.buffer.bitbuffer << self.buffer.bits_to_go);
         }
 
         // return number of bytes used
@@ -249,10 +244,9 @@ impl RCEncoder {
 
     pub fn encode_short(
         &mut self,
-        input: &[i16],        /* input array			*/
-        nx: usize,            /* number of input pixels	*/
-        nblock: usize,        /* coding block size		*/
-        output: &mut Vec<u8>, /* output buffer		*/
+        input: &[i16], /* input array			*/
+        nx: usize,     /* number of input pixels	*/
+        nblock: usize, /* coding block size		*/
     ) -> Result<usize, EncodeError> {
         if input.is_empty() || nblock == 0 {
             return Err(EncodeError::ZeroSizeInput);
@@ -295,8 +289,6 @@ impl RCEncoder {
             bitbuffer: 0,
         };
 
-        output.reserve(nx * 4);
-
         /*
          * array for differences mapped to non-negative values
          */
@@ -311,7 +303,7 @@ impl RCEncoder {
         self.buffer.bits_to_go = 8;
 
         /* write out first int value to the first 4 bytes of the buffer */
-        if self.output_nbits(output, input[0].into(), 16) == EOF {
+        if self.output_nbits(input[0].into(), 16) == EOF {
             (self.log_fn)("rice_encode: end of buffer");
             return Err(EncodeError::EndOfBuffer);
         }
@@ -369,13 +361,13 @@ impl RCEncoder {
                 /* Special high entropy case when FS >= fsmax
                  * Just write pixel difference values directly, no Rice coding at all.
                  */
-                if self.output_nbits(output, fsmax + 1, fsbits) == EOF {
+                if self.output_nbits(fsmax + 1, fsbits) == EOF {
                     (self.log_fn)("rice_encode: end of buffer");
                     return Err(EncodeError::EndOfBuffer);
                 }
 
                 for &diff_item in diff.iter().take(thisblock) {
-                    if self.output_nbits(output, diff_item as i32, bbits) == EOF {
+                    if self.output_nbits(diff_item as i32, bbits) == EOF {
                         (self.log_fn)("rice_encode: end of buffer");
                         return Err(EncodeError::EndOfBuffer);
                     }
@@ -386,13 +378,13 @@ impl RCEncoder {
                  * pixels in block are zero.)
                  * Output a 0 and return
                  */
-                if self.output_nbits(output, 0, fsbits) == EOF {
+                if self.output_nbits(0, fsbits) == EOF {
                     (self.log_fn)("rice_encode: end of buffer");
                     return Err(EncodeError::EndOfBuffer);
                 }
             } else {
                 /* normal case: not either very high or very low entropy */
-                if self.output_nbits(output, fs + 1, fsbits) == EOF {
+                if self.output_nbits(fs + 1, fsbits) == EOF {
                     (self.log_fn)("rice_encode: end of buffer");
                     return Err(EncodeError::EndOfBuffer);
                 }
@@ -414,11 +406,11 @@ impl RCEncoder {
                         lbits_to_go -= top + 1;
                     } else {
                         lbitbuffer <<= lbits_to_go;
-                        self.putcbuf(output, lbitbuffer & 0xff);
+                        self.putcbuf(lbitbuffer & 0xff);
 
                         top -= lbits_to_go;
                         while top >= 8 {
-                            self.putcbuf(output, 0);
+                            self.putcbuf(0);
                             top -= 8;
                         }
 
@@ -436,7 +428,7 @@ impl RCEncoder {
                         lbitbuffer |= v & fsmask;
                         lbits_to_go -= fs;
                         while lbits_to_go <= 0 {
-                            self.putcbuf(output, (lbitbuffer >> (-lbits_to_go)) & 0xff);
+                            self.putcbuf((lbitbuffer >> (-lbits_to_go)) & 0xff);
                             lbits_to_go += 8;
                         }
                     }
@@ -449,7 +441,7 @@ impl RCEncoder {
 
         // Flush out the last bits
         if self.buffer.bits_to_go < 8 {
-            self.putcbuf(output, self.buffer.bitbuffer << self.buffer.bits_to_go);
+            self.putcbuf(self.buffer.bitbuffer << self.buffer.bits_to_go);
         }
 
         // return number of bytes used
@@ -458,10 +450,9 @@ impl RCEncoder {
 
     pub fn encode_byte(
         &mut self,
-        input: &[i8],         /* input array			*/
-        nx: usize,            /* number of input pixels	*/
-        nblock: usize,        /* coding block size		*/
-        output: &mut Vec<u8>, /* output buffer		*/
+        input: &[i8],  /* input array			*/
+        nx: usize,     /* number of input pixels	*/
+        nblock: usize, /* coding block size		*/
     ) -> Result<usize, EncodeError> {
         if input.is_empty() || nblock == 0 {
             return Err(EncodeError::ZeroSizeInput);
@@ -504,8 +495,6 @@ impl RCEncoder {
             bitbuffer: 0,
         };
 
-        output.reserve(nx * 4);
-
         /*
          * array for differences mapped to non-negative values
          */
@@ -520,7 +509,7 @@ impl RCEncoder {
         self.buffer.bits_to_go = 8;
 
         /* write out first int value to the first 4 bytes of the buffer */
-        if self.output_nbits(output, input[0].into(), 8) == EOF {
+        if self.output_nbits(input[0].into(), 8) == EOF {
             (self.log_fn)("rice_encode: end of buffer");
             return Err(EncodeError::EndOfBuffer);
         }
@@ -578,13 +567,13 @@ impl RCEncoder {
                 /* Special high entropy case when FS >= fsmax
                  * Just write pixel difference values directly, no Rice coding at all.
                  */
-                if self.output_nbits(output, fsmax + 1, fsbits) == EOF {
+                if self.output_nbits(fsmax + 1, fsbits) == EOF {
                     (self.log_fn)("rice_encode: end of buffer");
                     return Err(EncodeError::EndOfBuffer);
                 }
 
                 for &diff_item in diff.iter().take(thisblock) {
-                    if self.output_nbits(output, diff_item as i32, bbits) == EOF {
+                    if self.output_nbits(diff_item as i32, bbits) == EOF {
                         (self.log_fn)("rice_encode: end of buffer");
                         return Err(EncodeError::EndOfBuffer);
                     }
@@ -595,13 +584,13 @@ impl RCEncoder {
                  * pixels in block are zero.)
                  * Output a 0 and return
                  */
-                if self.output_nbits(output, 0, fsbits) == EOF {
+                if self.output_nbits(0, fsbits) == EOF {
                     (self.log_fn)("rice_encode: end of buffer");
                     return Err(EncodeError::EndOfBuffer);
                 }
             } else {
                 /* normal case: not either very high or very low entropy */
-                if self.output_nbits(output, fs + 1, fsbits) == EOF {
+                if self.output_nbits(fs + 1, fsbits) == EOF {
                     (self.log_fn)("rice_encode: end of buffer");
                     return Err(EncodeError::EndOfBuffer);
                 }
@@ -623,11 +612,11 @@ impl RCEncoder {
                         lbits_to_go -= top + 1;
                     } else {
                         lbitbuffer <<= lbits_to_go;
-                        self.putcbuf(output, lbitbuffer & 0xff);
+                        self.putcbuf(lbitbuffer & 0xff);
 
                         top -= lbits_to_go;
                         while top >= 8 {
-                            self.putcbuf(output, 0);
+                            self.putcbuf(0);
                             top -= 8;
                         }
 
@@ -645,7 +634,7 @@ impl RCEncoder {
                         lbitbuffer |= v & fsmask;
                         lbits_to_go -= fs;
                         while lbits_to_go <= 0 {
-                            self.putcbuf(output, (lbitbuffer >> (-lbits_to_go)) & 0xff);
+                            self.putcbuf((lbitbuffer >> (-lbits_to_go)) & 0xff);
                             lbits_to_go += 8;
                         }
                     }
@@ -658,7 +647,7 @@ impl RCEncoder {
 
         // Flush out the last bits
         if self.buffer.bits_to_go < 8 {
-            self.putcbuf(output, self.buffer.bitbuffer << self.buffer.bits_to_go);
+            self.putcbuf(self.buffer.bitbuffer << self.buffer.bits_to_go);
         }
 
         // return number of bytes used
@@ -667,7 +656,7 @@ impl RCEncoder {
 
     /*---------------------------------------------------------------------------*/
     /// Output N bits (N must be <= 32)
-    fn output_nbits(&mut self, output: &mut Vec<u8>, bits: i32, n: i32) -> i32 {
+    fn output_nbits(&mut self, bits: i32, n: i32) -> i32 {
         /* local copies */
 
         let mut n = n;
@@ -693,7 +682,7 @@ impl RCEncoder {
             lbitbuffer <<= lbits_to_go;
             /*	lbitbuffer |= (bits>>(n-lbits_to_go)) & ((1<<lbits_to_go)-1); */
             lbitbuffer |= (bits >> (n - lbits_to_go)) & (MASK[lbits_to_go as usize] as i32);
-            self.putcbuf(output, lbitbuffer & 0xff);
+            self.putcbuf(lbitbuffer & 0xff);
             n -= lbits_to_go;
             lbits_to_go = 8;
         }
@@ -705,7 +694,7 @@ impl RCEncoder {
             /*
              * bitbuffer full, put out top 8 bits
              */
-            self.putcbuf(output, (lbitbuffer >> (-lbits_to_go)) & 0xff);
+            self.putcbuf((lbitbuffer >> (-lbits_to_go)) & 0xff);
             lbits_to_go += 8;
         }
         self.buffer.bitbuffer = lbitbuffer;
@@ -713,8 +702,8 @@ impl RCEncoder {
         0
     }
 
-    fn putcbuf(&mut self, buffer: &mut Vec<u8>, c: i32) {
-        buffer.push(c as u8);
+    fn putcbuf(&mut self, c: i32) {
+        self.inner.write_all(&[c as u8]).unwrap();
         self.buffer.current += 1;
     }
 }

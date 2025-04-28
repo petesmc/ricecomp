@@ -36,9 +36,9 @@ mod tests {
             25, 26, 27, 28, 29, 30, 31, 32,
         ];
 
-        let mut encoder = write::RCEncoder::new();
         let mut outarray = Vec::new();
-        let _result = encoder.encode(&inarray, 32, 16, &mut outarray).unwrap();
+        let mut encoder = write::RCEncoder::new(&mut outarray);
+        let _result = encoder.encode(&inarray, 32, 16).unwrap();
 
         assert_eq!(outarray.len(), 17);
     }
@@ -51,9 +51,9 @@ mod tests {
             25, 26, 27, 28, 29, 30, 31, 32,
         ];
 
-        let mut encoder = write::RCEncoder::new();
         let mut outarray = Vec::new();
-        let _result = encoder.encode(&inarray, 32, bs, &mut outarray).unwrap();
+        let mut encoder = write::RCEncoder::new(&mut outarray);
+        let _result = encoder.encode(&inarray, 32, bs).unwrap();
 
         let decoder = read::RCDecoder::new();
         let mut new_inarray = Vec::new();
@@ -71,11 +71,9 @@ mod tests {
             25, 26, 27, 28, 29, 30, 31, 32,
         ];
 
-        let mut encoder = write::RCEncoder::new();
         let mut outarray = Vec::new();
-        let _result = encoder
-            .encode_short(&inarray, 32, bs, &mut outarray)
-            .unwrap();
+        let mut encoder = write::RCEncoder::new(&mut outarray);
+        let _result = encoder.encode_short(&inarray, 32, bs).unwrap();
 
         let decoder = read::RCDecoder::new();
         let mut new_inarray = Vec::new();
@@ -93,11 +91,9 @@ mod tests {
             25, 26, 27, 28, 29, 30, 31, 32,
         ];
 
-        let mut encoder = write::RCEncoder::new();
         let mut outarray = Vec::new();
-        let _result = encoder
-            .encode_byte(&inarray, 32, bs, &mut outarray)
-            .unwrap();
+        let mut encoder = write::RCEncoder::new(&mut outarray);
+        let _result = encoder.encode_byte(&inarray, 32, bs).unwrap();
 
         let decoder = read::RCDecoder::new();
         let mut new_inarray = Vec::new();
@@ -255,9 +251,9 @@ mod tests {
         ];
         let bs = 139;
 
-        let mut encoder = write::RCEncoder::new();
         let mut outarray = Vec::new();
-        let _result = encoder.encode(&inarray, 141, bs, &mut outarray).unwrap();
+        let mut encoder = write::RCEncoder::new(&mut outarray);
+        let _result = encoder.encode(&inarray, 141, bs).unwrap();
 
         let decoder = read::RCDecoder::new();
         let mut new_inarray = Vec::new();
