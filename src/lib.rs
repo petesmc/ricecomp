@@ -27,6 +27,8 @@ pub struct DataByte {
 
 #[cfg(test)]
 mod tests {
+    use std::vec;
+
     use super::*;
 
     #[test]
@@ -56,7 +58,7 @@ mod tests {
         let _result = encoder.encode(&inarray, 32, bs).unwrap();
 
         let decoder = read::RCDecoder::new();
-        let mut new_inarray = Vec::new();
+        let mut new_inarray = vec![0; 32];
         let _result = decoder.decode(&outarray, 32, bs, &mut new_inarray);
         let new_inarray: Vec<i32> = new_inarray.iter().map(|&x| x as i32).collect();
         assert_eq!(new_inarray.len(), 32);
@@ -76,7 +78,7 @@ mod tests {
         let _result = encoder.encode_short(&inarray, 32, bs).unwrap();
 
         let decoder = read::RCDecoder::new();
-        let mut new_inarray = Vec::new();
+        let mut new_inarray = vec![0; 32];
         let _result = decoder.decode_short(&outarray, 32, bs, &mut new_inarray);
         let new_inarray: Vec<i16> = new_inarray.iter().map(|&x| x as i16).collect();
         assert_eq!(new_inarray.len(), 32);
@@ -96,7 +98,7 @@ mod tests {
         let _result = encoder.encode_byte(&inarray, 32, bs).unwrap();
 
         let decoder = read::RCDecoder::new();
-        let mut new_inarray = Vec::new();
+        let mut new_inarray = vec![0; 32];
         let _result = decoder.decode_byte(&outarray, 32, bs, &mut new_inarray);
         let new_inarray: Vec<i8> = new_inarray.iter().map(|&x| x as i8).collect();
         assert_eq!(new_inarray.len(), 32);
@@ -256,7 +258,7 @@ mod tests {
         let _result = encoder.encode(&inarray, 141, bs).unwrap();
 
         let decoder = read::RCDecoder::new();
-        let mut new_inarray = Vec::new();
+        let mut new_inarray = vec![0; 141];
         let _result = decoder.decode(&outarray, 141, bs, &mut new_inarray);
 
         let new_inarray: Vec<i32> = new_inarray.iter().map(|&x| x as i32).collect();

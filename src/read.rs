@@ -45,7 +45,7 @@ impl RCDecoder {
         input: &[u8], /* input buffer			*/
         nx: usize,    /* number of output pixels	*/
         nblock: usize,
-        output: &mut Vec<c_uint>,
+        output: &mut [c_uint],
     ) -> Result<(), DecodeError> /* coding block size		*/ {
         /* int bsize;  */
 
@@ -57,7 +57,7 @@ impl RCDecoder {
 
         let mut diff: u32;
 
-        output.resize(nx, 0);
+        assert_eq!(output.len(), nx);
         output.fill(0);
 
         /*
@@ -217,7 +217,7 @@ impl RCDecoder {
         input: &[u8], /* input buffer			*/
         nx: usize,    /* number of output pixels	*/
         nblock: usize,
-        output: &mut Vec<c_ushort>,
+        output: &mut [c_ushort],
     ) -> Result<(), DecodeError> /* coding block size		*/ {
         /* int bsize;  */
 
@@ -229,7 +229,7 @@ impl RCDecoder {
 
         let mut diff: u32;
 
-        output.resize(nx, 0);
+        assert_eq!(output.len(), nx);
         output.fill(0);
 
         /*
@@ -385,7 +385,7 @@ impl RCDecoder {
         input: &[u8], /* input buffer			*/
         nx: usize,    /* number of output pixels	*/
         nblock: usize,
-        output: &mut Vec<c_uchar>,
+        output: &mut [c_uchar],
     ) -> Result<(), DecodeError> /* coding block size		*/ {
         /* int bsize;  */
 
@@ -397,7 +397,7 @@ impl RCDecoder {
 
         let mut diff: u32;
 
-        output.resize(nx, 0);
+        assert_eq!(output.len(), nx);
         output.fill(0);
 
         /*

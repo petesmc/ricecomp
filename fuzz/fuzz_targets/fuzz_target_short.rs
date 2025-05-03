@@ -19,7 +19,7 @@ fuzz_target!(|data: DataShort| {
     match out_count {
         Ok(v) => {
             let decoder = RCDecoder::new();
-            let mut decomp_array = Vec::new();
+            let mut decomp_array = vec![0; l];
             let result = decoder.decode_short(&comp_array,l, blocksz as usize, &mut decomp_array).unwrap();
             let decomp_array: Vec<i16> = decomp_array.iter().map(|&x| x as i16).collect();
 
