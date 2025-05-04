@@ -19,6 +19,7 @@ const NONZERO_COUNT: [i32; 256] = [
 pub enum DecodeError {
     EndOfBuffer,
     ZeroSizeInput,
+    NotProperlyAllocated,
 }
 
 pub struct RCDecoder {
@@ -87,6 +88,11 @@ impl RCDecoder {
 
         /* first 4 bytes of input buffer contain the value of the first */
         /* 4 byte integer value, without any encoding */
+
+        if (input.len() < 4) {
+            (self.log_fn)("decompression error: input buffer not properly allocated");
+            return Err(DecodeError::NotProperlyAllocated);
+        }
 
         let mut lastpix: u32 = 0;
         let mut bytevalue: u8 = input[0];
